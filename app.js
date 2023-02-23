@@ -4,6 +4,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const lodash = require("lodash");
+const mongoose = require("mongoose");
 
 const homeStartingContent = "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.";
 const aboutContent = "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.";
@@ -13,10 +14,38 @@ const app = express();
 
 app.set('view engine', 'ejs');
 
+mongoose.set('strictQuery', false);
+mongoose.connect("mongodb://localhost:27017/blogsDB", {useNewUrlParser: true});
+
+
+const blogSchema = new mongoose.Schema({
+  title: String,
+  content: String
+});
+
+const Blog = mongoose.model("Blog", blogSchema);
+
+const blog1 = new Blog({
+  title: "Blog1",
+  content: "I am blog 1 :)"
+});
+
+const blog2 = new Blog({
+  title: "Blog2",
+  content: "I am blog 2 :)"
+});
+
+const blog3 = new Blog({
+  title: "Blog3",
+  content: "I am blog 3 :)"
+});
+
+const defaultBlogs = [blog1, blog2, blog3];
+
+
+
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(express.static("public"));
-
-let postContent = [];
 
 app.get("/",function(req,res){
   res.render("home",{
@@ -39,30 +68,39 @@ app.get("/compose",function(req,res){
 });
 
 app.get("/blogs",function(req,res){
-  res.render("blogs",{
-    posts: postContent
+  Blog.find({}, function(err, foundBlogs){
+    if(foundBlogs.length===0){
+      Blog.insertMany(defaultBlogs, function(err){
+        console.log("default blogs inserted into db");
+        res.redirect("/blogs");
+      });
+    }
+    else{
+      res.render("blogs",{posts: foundBlogs}); 
+    }
   });
 });
 
 app.get("/posts/:postName",function(req,res){
-  const searchedBlog = lodash.lowerCase(req.params.postName);
-  postContent.forEach(function(post){
-    const title = lodash.lowerCase(post.blogtitle);
-    if(title===searchedBlog){
-      res.render("post",{
-        title:post.blogtitle,
-        blog:post.blogPost
+  Blog.findOne({title: req.params.postName}, function(err, foundBlog){
+    if(err){
+      console.log(err);
+    }
+    else{
+      res.render("post", {
+        title: foundBlog.title,
+        blog: foundBlog.content
       });
     }
   });
 });
 
 app.post("/compose",function(req,res){
-  var post={
-    blogtitle:req.body.blogtitle,
-    blogPost:req.body.blogpost
-  };
-  postContent.push(post);
+  const blogn = new Blog({
+    title: req.body.blogtitle,
+    content: req.body.blogpost
+  });
+  blogn.save();
   res.redirect("/blogs");
 });
 
